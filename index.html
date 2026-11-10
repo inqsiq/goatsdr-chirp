@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>GoatSDR // Gravitational Chirp Lab</title>
+<style>
+  :root {
+    --bg: #07090e;
+    --panel: #0d121d;
+    --panel-border: #1e293b;
+    --cyan: #00f0ff;
+    --violet: #a855f7;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+  header {
+    width: 100%;
+    max-width: 900px;
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--panel-border);
+    background: rgba(13, 18, 29, 0.8);
+    backdrop-filter: blur(10px);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    font-size: 16px;
+    letter-spacing: 1px;
+    color: #fff;
+  }
+  .logo-badge {
+    background: linear-gradient(135deg, #0284c7, #9333ea);
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .sound-btn {
+    background: rgba(0, 240, 255, 0.1);
+    color: var(--cyan);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+  }
+  .sound-btn:hover {
+    background: rgba(0, 240, 255, 0.2);
+    border-color: var(--cyan);
+  }
+  .sound-btn.active {
+    background: var(--cyan);
+    color: #000;
+    box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+  }
+
+  main {
+    width: 100%;
+    max-width: 900px;
+    padding: 20px 16px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Canvas viewport */
+  .viewport-card {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .canvas-container {
+    width: 100%;
+    height: 380px;
+    position: relative;
+    background: radial-gradient(circle at center, #111827 0%, #05070a 100%);
+  }
+  canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .overlay-info {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .badge-phase {
+    display: inline-block;
+    padding: 4px 10px;
+    background: rgba(0,0,0,0.6);
+    border: 1px solid var(--cyan);
+    border-radius: 20px;
+    color: var(--cyan);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    backdrop-filter: blur(4px);
+  }
+  .stat-text {
+    font-size: 13px;
+    color: #cbd5e1;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    font-family: monospace;
+  }
+  .stat-highlight {
+    color: var(--amber);
+    font-weight: 700;
+  }
+
+  /* Oscilloscope / Waveform */
+  .wave-card {
+    height: 110px;
+    background: #090d15;
+    border-top: 1px solid var(--panel-border);
+    position: relative;
+  }
+  #waveCanvas {
+    width: 100%;
+    height: 100%;
+  }
+  .wave-label {
+    position: absolute;
+    top: 6px;
+    left: 12px;
+    font-size: 10px;
+    color: var(--cyan);
+    font-family: monospace;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    opacity: 0.8;
+  }
+
+  /* Preset Pills */
+  .presets-row {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+  .presets-row::-webkit-scrollbar { display: none; }
+  .preset-pill {
+    background: #111827;
+    border: 1px solid #1f293d;
+    padding: 10px 16px;
+    border-radius: 12px;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .preset-pill small {
+    font-size: 10px;
+    color: #64748b;
+  }
+  .preset-pill:hover {
+    border-color: #38bdf8;
+    color: #fff;
+  }
+  .preset-pill.active {
+    background: rgba(14, 165, 233, 0.15);
+    border-color: var(--cyan);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+  }
+  .preset-pill.active small {
+    color: var(--cyan);
+  }
+
+  /* Controls Grid */
+  .controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 640px) {
+    .controls-grid { grid-template-columns: 1fr; }
+  }
+  .control-box {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .control-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+  }
+  .control-val {
+    color: var(--cyan);
+    font-family: monospace;
+    font-weight: 700;
+  }
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: #1e293b;
+    border-radius: 4px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--cyan);
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
+  }
+
+  /* Play Button */
+  .btn-chirp {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, #0284c7 0%, #7c3aed 100%);
+    border: none;
+    border-radius: 14px;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 800;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    transition: transform 0.1s, box-shadow 0.2s;
+  }
+  .btn-chirp:hover {
+    box-shadow: 0 6px 25px rgba(124, 58, 237, 0.6);
+  }
+  .btn-chirp:active {
+    transform: scale(0.98);
+  }
+
+  /* Metrics Panel */
+  .metrics-card {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    text-align: center;
+  }
+  @media (max-width: 600px) {
+    .metrics-card { grid-template-columns: 1fr; gap: 12px; text-align: left; }
+  }
+  .metric-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .metric-title {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .metric-value {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+    font-family: monospace;
+  }
+  .metric-sub {
+    font-size: 11px;
+    color: #64748b;
+  }
+
+  /* Info Accordion / Explainer */
+  .info-box {
+    background: rgba(15, 23, 42, 0.6);
+    border-left: 3px solid var(--violet);
+    border-radius: 0 12px 12px 0;
+    padding: 14px 18px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #cbd5e1;
+  }
+  .info-box strong { color: #fff; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span>GOATSDR</span>
+    <span class="logo-badge">GW // LAB v1.0</span>
+  </div>
+  <button class="sound-btn" id="soundToggleBtn">
+    <span id="soundIcon">🔊</span>
+    <span id="soundText">ЗВУК ВКЛ</span>
+  </button>
+</header>
+
+<main>
+  <!-- Presets -->
+  <div class="presets-row">
+    <div class="preset-pill active" data-m1="36" data-m2="29" data-name="GW150914 (Первое открытие)">
+      <span>GW150914</span>
+      <small>36 M☉ + 29 M☉ • 250 Гц</small>
+    </div>
+    <div class="preset-pill" data-m1="1.4" data-m2="1.4" data-name="GW170817 (Нейтронные звёзды)">
+      <span>GW170817</span>
+      <small>1.4 M☉ + 1.4 M☉ • 1500 Гц</small>
+    </div>
+    <div class="preset-pill" data-m1="85" data-m2="66" data-name="GW190521 (Гигантские ЧД)">
+      <span>GW190521</span>
+      <small>85 M☉ + 66 M☉ • 60 Гц (Саб-бас)</small>
+    </div>
+    <div class="preset-pill" data-m1="10" data-m2="10" data-name="Своя система">
+      <span>Пользовательская</span>
+      <small>Произвольные массы</small>
+    </div>
+  </div>
+
+  <!-- Viewport -->
+  <div class="viewport-card">
+    <div class="canvas-container">
+      <canvas id="simCanvas"></canvas>
+      <div class="overlay-info">
+        <span class="badge-phase" id="phaseBadge">ИНСПИРАЛЬ (ОРБИТА)</span>
+        <div class="stat-text">Частота волны: <span class="stat-highlight" id="statFreq">42 Гц</span></div>
+        <div class="stat-text">Орбитальная скорость: <span class="stat-highlight" id="statSpeed">0.25 c</span></div>
+      </div>
+    </div>
+    <div class="wave-card">
+      <span class="wave-label">Детектор LIGO // Strain h(t) Осциллограф</span>
+      <canvas id="waveCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Play button -->
+  <button class="btn-chirp" id="playBtn">
+    <span>▶ ЗАПУСТИТЬ СЛИЯНИЕ И ЧИРП</span>
+  </button>
+
+  <!-- Sliders -->
+  <div class="controls-grid">
+    <div class="control-box">
+      <div class="control-header">
+        <span>Масса 1-й чёрной дыры (M₁)</span>
+        <span class="control-val" id="valM1">36 M☉</span>
+      </div>
+      <input type="range" id="sliderM1" min="1" max="100" step="1" value="36">
+    </div>
+
+    <div class="control-box">
+      <div class="control-header">
+        <span>Масса 2-й чёрной дыры (M₂)</span>
+        <span class="control-val" id="valM2">29 M☉</span>
+      </div>
+      <input type="range" id="sliderM2" min="1" max="100" step="1" value="29">
+    </div>
+  </div>
+
+  <!-- Real-time metrics -->
+  <div class="metrics-card">
+    <div class="metric-item">
+      <span class="metric-title">Масса Чирпа (ℳ)</span>
+      <span class="metric-value" id="metricChirpMass">28.1 M☉</span>
+      <span class="metric-sub">Определяет скорость нарастания</span>
+    </div>
+    <div class="metric-item">
+      <span class="metric-title">Пиковая мощность</span>
+      <span class="metric-value" id="metricPower">50× Звёзд Вселенной</span>
+      <span class="metric-sub">3.6 × 10⁴⁹ Вт в гравитации</span>
+    </div>
+    <div class="metric-item">
+      <span class="metric-title">Смещение детектора (h)</span>
+      <span class="metric-value" id="metricStrain">10⁻²¹</span>
+      <span class="metric-sub">~1/10 000 диаметра протона</span>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <strong>💡 Как слушать чирп:</strong> Гравитационные волны — это не звук в воздухе, а колебания самой геометрии пространства-времени. Но поскольку их частота попадает точно в диапазон нашего слуха (от 20 до 2000 Гц), датчики интерферометра LIGO напрямую конвертируют оптический сигнал в звук! За доли секунды до столкновения частота и громкость резко взлетают — это и есть знаменитый космический свист <em>«chirp»</em>.
+  </div>
+</main>
+
+<script>
+// Web Audio Setup
+let audioCtx = null;
+let soundEnabled = true;
+
+function initAudio() {
+  if (!audioCtx) {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContext();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
+// Canvas Setup
+const simCanvas = document.getElementById('simCanvas');
+const simCtx = simCanvas.getContext('2d');
+const waveCanvas = document.getElementById('waveCanvas');
+const waveCtx = waveCanvas.getContext('2d');
+
+function resizeCanvases() {
+  const dpr = window.devicePixelRatio || 1;
+  const rectSim = simCanvas.getBoundingClientRect();
+  simCanvas.width = rectSim.width * dpr;
+  simCanvas.height = rectSim.height * dpr;
+  simCtx.scale(dpr, dpr);
+
+  const rectWave = waveCanvas.getBoundingClientRect();
+  waveCanvas.width = rectWave.width * dpr;
+  waveCanvas.height = rectWave.height * dpr;
+  waveCtx.scale(dpr, dpr);
+}
+window.addEventListener('resize', resizeCanvases);
+setTimeout(resizeCanvases, 50);
+
+// Physics State
+let m1 = 36;
+let m2 = 29;
+let isPlaying = false;
+let simTime = 0; // 0 to 1
+let duration = 3.5; // seconds
+let lastTimestamp = 0;
+
+// Waves history for oscilloscope
+const waveHistory = [];
+const maxWavePoints = 300;
+
+// Relativistic parameters calculation
+function calcParameters() {
+  const totalM = m1 + m2;
+  const chirpMass = Math.pow(m1 * m2, 3/5) / Math.pow(totalM, 1/5);
+  // Merger frequency (ISCO): f_isco ~ c^3 / (6^(3/2) * pi * G * M)
+  // For 60 Msun, f_isco ~ 250 Hz. Scaled inversely with total mass:
+  const f_merger = Math.min(2200, Math.max(45, (65 / totalM) * 250));
+  const f_start = Math.max(25, f_merger * 0.15);
+
+  document.getElementById('metricChirpMass').innerText = chirpMass.toFixed(1) + ' M☉';
+  document.getElementById('valM1').innerText = m1 + ' M☉';
+  document.getElementById('valM2').innerText = m2 + ' M☉';
+
+  // Peak power relative to all stars in universe (~10^48 W)
+  const powerScale = Math.min(95, Math.max(15, (totalM / 65) * 50)).toFixed(0);
+  document.getElementById('metricPower').innerText = powerScale + '× Звёзд Вселенной';
+
+  return { totalM, chirpMass, f_start, f_merger };
+}
+
+// Sound Synthesis Function
+let activeOsc = null;
+let activeGain = null;
+
+function playChirpSound(f_start, f_merger, dur) {
+  if (!soundEnabled) return;
+  initAudio();
+
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const subOsc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  const subGain = audioCtx.createGain();
+
+  osc.type = 'sine';
+  subOsc.type = 'triangle';
+
+  // Inverted power law for frequency ramp: f(t) = f_start * (1 - t/dur)^(-3/8)
+  const steps = 60;
+  osc.frequency.setValueAtTime(f_start, now);
+  subOsc.frequency.setValueAtTime(f_start * 0.5, now);
+
+  for (let i = 1; i <= steps; i++) {
+    const tFrac = i / steps;
+    const tActual = now + tFrac * (dur * 0.95);
+    // Exponential / power curve up to merger
+    const f = f_start + (f_merger - f_start) * Math.pow(tFrac, 3.5);
+    osc.frequency.setValueAtTime(f, tActual);
+    subOsc.frequency.setValueAtTime(Math.min(200, f * 0.5), tActual);
+  }
+
+  // Amplitude ramp: grows as objects get closer
+  gain.gain.setValueAtTime(0.01, now);
+  gain.gain.exponentialRampToValueAtTime(0.35, now + dur * 0.94);
+  // Ringdown / damp down rapidly
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + dur + 0.15);
+
+  subGain.gain.setValueAtTime(0.01, now);
+  subGain.gain.linearRampToValueAtTime(0.2, now + dur * 0.9);
+  subGain.gain.exponentialRampToValueAtTime(0.0001, now + dur + 0.08);
+
+  osc.connect(gain);
+  subOsc.connect(subGain);
+  gain.connect(audioCtx.destination);
+  subGain.connect(audioCtx.destination);
+
+  osc.start(now);
+  subOsc.start(now);
+  osc.stop(now + dur + 0.2);
+  subOsc.stop(now + dur + 0.2);
+}
+
+// Particle gravitational wave rings
+const rings = [];
+
+function startSimulation() {
+  const { f_start, f_merger } = calcParameters();
+  simTime = 0;
+  isPlaying = true;
+  rings.length = 0;
+  waveHistory.length = 0;
+  document.getElementById('playBtn').innerText = '⏳ ИДЁТ СЛИЯНИЕ...';
+  document.getElementById('playBtn').style.opacity = '0.7';
+
+  playChirpSound(f_start, f_merger, duration);
+}
+
+document.getElementById('playBtn').addEventListener('click', () => {
+  initAudio();
+  startSimulation();
+});
+
+// Sound button toggle
+const soundBtn = document.getElementById('soundToggleBtn');
+soundBtn.addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  if (soundEnabled) {
+    initAudio();
+    soundBtn.classList.remove('active');
+    document.getElementById('soundIcon').innerText = '🔊';
+    document.getElementById('soundText').innerText = 'ЗВУК ВКЛ';
+  } else {
+    soundBtn.classList.add('active');
+    document.getElementById('soundIcon').innerText = '🔇';
+    document.getElementById('soundText').innerText = 'ЗВУК ВЫКЛ';
+  }
+});
+
+// Sliders and Presets
+const sliderM1 = document.getElementById('sliderM1');
+const sliderM2 = document.getElementById('sliderM2');
+
+sliderM1.addEventListener('input', (e) => {
+  m1 = parseFloat(e.target.value);
+  document.querySelectorAll('.preset-pill').forEach(p => p.classList.remove('active'));
+  calcParameters();
+});
+sliderM2.addEventListener('input', (e) => {
+  m2 = parseFloat(e.target.value);
+  document.querySelectorAll('.preset-pill').forEach(p => p.classList.remove('active'));
+  calcParameters();
+});
+
+document.querySelectorAll('.preset-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('.preset-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    m1 = parseFloat(pill.dataset.m1);
+    m2 = parseFloat(pill.dataset.m2);
+    sliderM1.value = m1;
+    sliderM2.value = m2;
+    calcParameters();
+    startSimulation();
+  });
+});
+
+calcParameters();
+
+// Animation Loop
+let angle = 0;
+
+function animate(timestamp) {
+  if (!lastTimestamp) lastTimestamp = timestamp;
+  const dt = (timestamp - lastTimestamp) / 1000;
+  lastTimestamp = timestamp;
+
+  const w = simCanvas.getBoundingClientRect().width;
+  const h = simCanvas.getBoundingClientRect().height;
+  const cx = w / 2;
+  const cy = h / 2;
+
+  const { f_start, f_merger } = calcParameters();
+
+  let currentFreq = f_start;
+  let currentSep = 110;
+  let speedFrac = 0.15;
+
+  if (isPlaying) {
+    simTime += dt / duration;
+
+    if (simTime >= 1.0) {
+      isPlaying = false;
+      simTime = 1.0;
+      document.getElementById('playBtn').innerText = '▶ ПОВТОРИТЬ СЛИЯНИЕ';
+      document.getElementById('playBtn').style.opacity = '1';
+      document.getElementById('phaseBadge').innerText = 'РИНГДАУН (СПОКОЙНАЯ ЧД)';
+      document.getElementById('phaseBadge').style.borderColor = '#10b981';
+      document.getElementById('phaseBadge').style.color = '#10b981';
+    } else {
+      // Inspiral progress
+      const progress = Math.min(1, Math.max(0, simTime));
+      const f = f_start + (f_merger - f_start) * Math.pow(progress, 3.5);
+      currentFreq = f;
+      currentSep = Math.max(8, 120 * Math.pow(1 - progress, 0.6));
+      speedFrac = Math.min(0.68, 0.15 + 0.53 * Math.pow(progress, 2.5));
+
+      if (progress < 0.85) {
+        document.getElementById('phaseBadge').innerText = 'ИНСПИРАЛЬ (СБЛИЖЕНИЕ)';
+        document.getElementById('phaseBadge').style.borderColor = 'var(--cyan)';
+        document.getElementById('phaseBadge').style.color = 'var(--cyan)';
+      } else {
+        document.getElementById('phaseBadge').innerText = '💥 СЛИЯНИЕ (ПИК МОЩНОСТИ!)';
+        document.getElementById('phaseBadge').style.borderColor = 'var(--red)';
+        document.getElementById('phaseBadge').style.color = 'var(--red)';
+      }
+
+      angle += currentFreq * dt * 0.6;
+
+      // Spawn gravitational waves
+      if (Math.random() < 0.35) {
+        rings.push({ r: currentSep * 0.5, alpha: 0.8, color: progress > 0.85 ? '#ef4444' : '#00f0ff' });
+      }
+
+      // Record to wave history
+      const strainAmp = Math.pow(progress, 1.8) * Math.sin(angle * 2);
+      waveHistory.push(strainAmp);
+      if (waveHistory.length > maxWavePoints) waveHistory.shift();
+    }
+  } else {
+    // Idle gentle rotation
+    angle += 0.8 * dt;
+    waveHistory.push(Math.sin(angle * 4) * 0.08);
+    if (waveHistory.length > maxWavePoints) waveHistory.shift();
+  }
+
+  document.getElementById('statFreq').innerText = Math.round(currentFreq) + ' Гц';
+  document.getElementById('statSpeed').innerText = speedFrac.toFixed(2) + ' c';
+
+  // --- DRAW SIMULATION CANVAS ---
+  simCtx.clearRect(0, 0, w, h);
+
+  // 1. Spacetime grid warping
+  simCtx.strokeStyle = 'rgba(30, 41, 59, 0.5)';
+  simCtx.lineWidth = 1;
+  const gridSize = 28;
+  for (let x = 0; x < w; x += gridSize) {
+    simCtx.beginPath();
+    simCtx.moveTo(x, 0);
+    simCtx.lineTo(x, h);
+    simCtx.stroke();
+  }
+  for (let y = 0; y < h; y += gridSize) {
+    simCtx.beginPath();
+    simCtx.moveTo(0, y);
+    simCtx.lineTo(w, y);
+    simCtx.stroke();
+  }
+
+  // 2. Gravitational Wave Ripples
+  for (let i = rings.length - 1; i >= 0; i--) {
+    const ring = rings[i];
+    ring.r += 120 * dt;
+    ring.alpha -= 0.6 * dt;
+
+    if (ring.alpha <= 0) {
+      rings.splice(i, 1);
+      continue;
+    }
+
+    simCtx.beginPath();
+    simCtx.arc(cx, cy, ring.r, 0, Math.PI * 2);
+    simCtx.strokeStyle = ring.color;
+    simCtx.globalAlpha = Math.max(0, ring.alpha * 0.5);
+    simCtx.lineWidth = 2.5;
+    simCtx.stroke();
+    simCtx.globalAlpha = 1;
+  }
+
+  // 3. Black holes positioning
+  const r1 = (m1 / (m1 + m2)) * currentSep;
+  const r2 = (m2 / (m1 + m2)) * currentSep;
+
+  const x1 = cx + Math.cos(angle) * r2;
+  const y1 = cy + Math.sin(angle) * r2;
+  const x2 = cx - Math.cos(angle) * r1;
+  const y2 = cy - Math.sin(angle) * r1;
+
+  // Accretion disk glow connection
+  const grad = simCtx.createLinearGradient(x1, y1, x2, y2);
+  grad.addColorStop(0, 'rgba(0, 240, 255, 0.4)');
+  grad.addColorStop(0.5, 'rgba(168, 85, 247, 0.2)');
+  grad.addColorStop(1, 'rgba(245, 158, 11, 0.4)');
+  simCtx.beginPath();
+  simCtx.moveTo(x1, y1);
+  simCtx.lineTo(x2, y2);
+  simCtx.strokeStyle = grad;
+  simCtx.lineWidth = Math.max(2, 8 * (1 - currentSep / 120));
+  simCtx.stroke();
+
+  // Draw BH1
+  const size1 = Math.max(5, Math.sqrt(m1) * 2.2);
+  const glow1 = simCtx.createRadialGradient(x1, y1, size1 * 0.5, x1, y1, size1 * 2.5);
+  glow1.addColorStop(0, 'rgba(0, 240, 255, 0.8)');
+  glow1.addColorStop(1, 'rgba(0, 240, 255, 0)');
+  simCtx.fillStyle = glow1;
+  simCtx.beginPath();
+  simCtx.arc(x1, y1, size1 * 2.5, 0, Math.PI * 2);
+  simCtx.fill();
+
+  simCtx.fillStyle = '#000000';
+  simCtx.beginPath();
+  simCtx.arc(x1, y1, size1, 0, Math.PI * 2);
+  simCtx.fill();
+  simCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+  simCtx.lineWidth = 1.5;
+  simCtx.stroke();
+
+  // Draw BH2
+  const size2 = Math.max(5, Math.sqrt(m2) * 2.2);
+  const glow2 = simCtx.createRadialGradient(x2, y2, size2 * 0.5, x2, y2, size2 * 2.5);
+  glow2.addColorStop(0, 'rgba(245, 158, 11, 0.8)');
+  glow2.addColorStop(1, 'rgba(245, 158, 11, 0)');
+  simCtx.fillStyle = glow2;
+  simCtx.beginPath();
+  simCtx.arc(x2, y2, size2 * 2.5, 0, Math.PI * 2);
+  simCtx.fill();
+
+  simCtx.fillStyle = '#000000';
+  simCtx.beginPath();
+  simCtx.arc(x2, y2, size2, 0, Math.PI * 2);
+  simCtx.fill();
+  simCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+  simCtx.lineWidth = 1.5;
+  simCtx.stroke();
+
+  // --- DRAW WAVE OSCILLOSCOPE CANVAS ---
+  const ww = waveCanvas.getBoundingClientRect().width;
+  const wh = waveCanvas.getBoundingClientRect().height;
+  waveCtx.clearRect(0, 0, ww, wh);
+
+  // Center baseline
+  waveCtx.strokeStyle = 'rgba(30, 41, 59, 0.8)';
+  waveCtx.lineWidth = 1;
+  waveCtx.beginPath();
+  waveCtx.moveTo(0, wh / 2);
+  waveCtx.lineTo(ww, wh / 2);
+  waveCtx.stroke();
+
+  // Draw waveform
+  if (waveHistory.length > 1) {
+    waveCtx.beginPath();
+    const stepX = ww / maxWavePoints;
+    for (let i = 0; i < waveHistory.length; i++) {
+      const px = i * stepX;
+      const py = (wh / 2) - waveHistory[i] * (wh * 0.42);
+      if (i === 0) waveCtx.moveTo(px, py);
+      else waveCtx.lineTo(px, py);
+    }
+    waveCtx.strokeStyle = '#00f0ff';
+    waveCtx.lineWidth = 2;
+    waveCtx.shadowColor = '#00f0ff';
+    waveCtx.shadowBlur = 6;
+    waveCtx.stroke();
+    waveCtx.shadowBlur = 0;
+  }
+
+  requestAnimationFrame(animate);
+}
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
